@@ -10,9 +10,9 @@
     <ul>
     {% for item in items %}
       <li>
-        {% if item.image %}
-          <img src="{{ url_for('uploaded_file', filename=item.image) }}" alt="{{ item.name }}" width="50" style="vertical-align:middle;">
-        {% endif %}
+          {% if item.image %}
+            <img src="{{ url_for('uploaded_file', filename=item.image) }}" alt="{{ item.name }}" width="50" style="vertical-align:middle; margin-right:10px;">
+          {% endif %}
         <label>
           <input type="checkbox" name="item-{{ loop.index0 }}" value="{{ item.name }}" checked>
           {{ item.name }}
