@@ -85,6 +85,9 @@ def main():
     ap.add_argument("--outdir", default="outputs", help="Where to save results")
     ap.add_argument("--conf", type=float, default=0.25, help="Confidence threshold")
     ap.add_argument("--imgsz", type=int, default=1280, help="Inference size")
+    ap.add_argument("--display", action="store_true", help="Show window with results")
+    ap.add_argument("--no-display", dest="display", action="store_false", help="Disable window display")
+    ap.set_defaults(display=True)
     args = ap.parse_args()
 
     os.makedirs(args.outdir, exist_ok=True)
@@ -158,6 +161,11 @@ def main():
               .sort_values(["shelf_id", "count"], ascending=[True, False])
         )
         shelf_summary.to_csv(os.path.join(args.outdir, "shelf_summary.csv"), index=False)
+
+    if args.display and hasattr(cv2, "imshow"):
+        cv2.imshow("annotated", annotated)
+        cv2.waitKey(0)
+        cv2.destroyAllWindows()
 
     print(f"[✓] Saved: {out_img}")
     print(f"[✓] Saved: {out_csv}")

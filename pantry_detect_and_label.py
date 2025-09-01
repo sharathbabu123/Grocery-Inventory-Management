@@ -114,6 +114,9 @@ def main():
     ap.add_argument("--imgsz", type=int, default=1280)
     ap.add_argument("--conf", type=float, default=0.25)
     ap.add_argument("--shelves", type=int, default=5, help="How many shelf bands to split vertically")
+    ap.add_argument("--display", action="store_true", help="Show window with results")
+    ap.add_argument("--no-display", dest="display", action="store_false", help="Disable window display")
+    ap.set_defaults(display=True)
     args = ap.parse_args()
 
     os.makedirs(args.outdir, exist_ok=True)
@@ -188,6 +191,11 @@ def main():
                      .reset_index(name="count")
                      .sort_values(["shelf_id","count"], ascending=[True, False]))
         summary.to_csv(os.path.join(args.outdir, "summary_by_shelf.csv"), index=False)
+
+    if args.display and hasattr(cv2, "imshow"):
+        cv2.imshow("annotated", annotated)
+        cv2.waitKey(0)
+        cv2.destroyAllWindows()
 
     print(f"[✓] saved: {ann_path}")
     print(f"[✓] saved: {csv_path}")
