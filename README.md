@@ -17,3 +17,8 @@ python pantry_detect_and_label.py --image path/to/pantry.jpg --no-display
 The `--display/--no-display` flag pair controls whether the window is
 shown (it defaults to enabled).
 
+The simple Flask web app in `webapp/` now supports capturing a short
+video clip from your webcam.  Use the **Start Video Stream** button to
+record and **Stop Video Stream** to finish; the clip's first frame is
+sent through the same detection pipeline as an uploaded image.
+

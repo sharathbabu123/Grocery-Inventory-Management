@@ -12,6 +12,12 @@
       <label>Upload pantry image:</label>
       <input type="file" name="pantry_image">
     </div>
+    <div>
+      <video id="video" width="300" style="display:none;" autoplay playsinline></video>
+      <button type="button" id="start-video">Start Video Stream</button>
+      <button type="button" id="stop-video" disabled>Stop Video Stream</button>
+      <input type="hidden" name="video_data" id="video_data">
+    </div>
     <div id="qr-reader" style="width:300px;"></div>
     <button type="button" id="start-scan">Start QR Scan</button>
     <ul id="scanned-list"></ul>
@@ -25,6 +31,50 @@
   const qrInput = document.getElementById('qr_items');
   const list = document.getElementById('scanned-list');
   const qr = new Html5Qrcode("qr-reader");
+
+  const video = document.getElementById('video');
+  const startVideoBtn = document.getElementById('start-video');
+  const stopVideoBtn = document.getElementById('stop-video');
+  const videoInput = document.getElementById('video_data');
+  let mediaRecorder;
+  let recordedChunks = [];
+
+  startVideoBtn.addEventListener('click', async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+      video.srcObject = stream;
+      video.style.display = 'block';
+      recordedChunks = [];
+      mediaRecorder = new MediaRecorder(stream);
+      mediaRecorder.ondataavailable = e => {
+        if (e.data.size > 0) recordedChunks.push(e.data);
+      };
+      mediaRecorder.onstop = () => {
+        const blob = new Blob(recordedChunks, { type: 'video/webm' });
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          videoInput.value = reader.result;
+        };
+        reader.readAsDataURL(blob);
+        stream.getTracks().forEach(track => track.stop());
+        video.style.display = 'none';
+      };
+      mediaRecorder.start();
+      startVideoBtn.disabled = true;
+      stopVideoBtn.disabled = false;
+    } catch (err) {
+      console.error(err);
+    }
+  });
+
+  stopVideoBtn.addEventListener('click', () => {
+    if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+      mediaRecorder.stop();
+      stopVideoBtn.disabled = true;
+      startVideoBtn.disabled = false;
+    }
+  });
+
   document.getElementById('start-scan').addEventListener('click', () => {
     Html5Qrcode.getCameras().then(cameras => {
       if (cameras && cameras.length) {

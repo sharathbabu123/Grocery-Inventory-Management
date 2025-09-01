@@ -7,6 +7,7 @@ import subprocess
 import pandas as pd
 import requests
 import cv2
+import base64
 
 app = Flask(__name__)
 app.config['UPLOAD_FOLDER'] = Path(__file__).parent / 'uploads'
@@ -45,12 +46,31 @@ def detect_items(image_path):
 def index():
     if request.method == 'POST':
         file = request.files.get('pantry_image')
+        video_data = request.form.get('video_data', '')
         scanned_codes = request.form.get('qr_items', '')
         items = [{'name': c.strip(), 'image': None} for c in scanned_codes.split(',') if c.strip()]
         if file and file.filename:
             save_path = app.config['UPLOAD_FOLDER'] / file.filename
             file.save(save_path)
             items.extend(detect_items(save_path))
+        if video_data.startswith('data:'):
+            try:
+                header, encoded = video_data.split(',', 1)
+                video_bytes = base64.b64decode(encoded)
+                video_name = f"{uuid.uuid4().hex}.webm"
+                video_path = app.config['UPLOAD_FOLDER'] / video_name
+                with open(video_path, 'wb') as f:
+                    f.write(video_bytes)
+                cap = cv2.VideoCapture(str(video_path))
+                ret, frame = cap.read()
+                cap.release()
+                if ret:
+                    frame_path = app.config['UPLOAD_FOLDER'] / f"{uuid.uuid4().hex}.jpg"
+                    cv2.imwrite(str(frame_path), frame)
+                    items.extend(detect_items(frame_path))
+                    frame_path.unlink(missing_ok=True)
+            except Exception as e:
+                print(f'video processing failed: {e}')
         return render_template('list.html', items=items, brands=BRANDS, quantities=QUANTITIES)
     return render_template('index.html')
 
