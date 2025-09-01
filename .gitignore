@@ -1,0 +1,4 @@
+*.pt
+outputs/
+yolov8x.pt
+outputs/
