@@ -1,0 +1,8 @@
+Flask
+requests
+ultralytics
+opencv-python
+pandas
+easyocr
+rapidfuzz
+numpy

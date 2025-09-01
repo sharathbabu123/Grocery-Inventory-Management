@@ -1,0 +1,34 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Select Items</title>
+</head>
+<body>
+  <h1>Select Items to Order</h1>
+  <form method="post" action="{{ url_for('order') }}">
+    <ul>
+    {% for item in items %}
+      <li>
+        <label>
+          <input type="checkbox" name="item-{{ loop.index0 }}" value="{{ item }}" checked>
+          {{ item }}
+        </label>
+        <select name="brand-{{ loop.index0 }}">
+        {% for b in brands %}
+          <option value="{{ b }}">{{ b }}</option>
+        {% endfor %}
+        </select>
+        <select name="qty-{{ loop.index0 }}">
+        {% for q in quantities %}
+          <option value="{{ q }}">{{ q }}</option>
+        {% endfor %}
+        </select>
+      </li>
+    {% endfor %}
+    </ul>
+    <input type="hidden" name="total" value="{{ items|length }}">
+    <button type="submit">Order</button>
+  </form>
+</body>
+</html>

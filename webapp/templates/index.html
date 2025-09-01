@@ -1,0 +1,49 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Grocery Inventory</title>
+  <script src="https://unpkg.com/html5-qrcode@2.3.8/minified/html5-qrcode.min.js"></script>
+</head>
+<body>
+  <h1>Grocery Inventory</h1>
+  <form method="post" enctype="multipart/form-data">
+    <div>
+      <label>Upload pantry image:</label>
+      <input type="file" name="pantry_image">
+    </div>
+    <div id="qr-reader" style="width:300px;"></div>
+    <button type="button" id="start-scan">Start QR Scan</button>
+    <ul id="scanned-list"></ul>
+    <input type="hidden" name="qr_items" id="qr_items">
+    <div>
+      <button type="submit">Generate List</button>
+    </div>
+  </form>
+<script>
+  const scanned = new Set();
+  const qrInput = document.getElementById('qr_items');
+  const list = document.getElementById('scanned-list');
+  const qr = new Html5Qrcode("qr-reader");
+  document.getElementById('start-scan').addEventListener('click', () => {
+    Html5Qrcode.getCameras().then(cameras => {
+      if (cameras && cameras.length) {
+        qr.start(
+          { facingMode: "environment" },
+          { fps: 10, qrbox: 250 },
+          (decoded) => {
+            if (!scanned.has(decoded)) {
+              scanned.add(decoded);
+              const li = document.createElement('li');
+              li.textContent = decoded;
+              list.appendChild(li);
+              qrInput.value = Array.from(scanned).join(',');
+            }
+          }
+        ).catch(err => console.error(err));
+      }
+    }).catch(err => console.error(err));
+  });
+</script>
+</body>
+</html>
