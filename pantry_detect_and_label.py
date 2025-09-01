@@ -109,90 +109,136 @@ def ocr_text(reader, crop_bgr):
 # ----------------- Main -----------------
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--image", required=True)
+    ap.add_argument("--image", help="Path to image file")
+    ap.add_argument("--video", help="Path to video file or webcam index")
     ap.add_argument("--outdir", default="outputs")
     ap.add_argument("--imgsz", type=int, default=1280)
     ap.add_argument("--conf", type=float, default=0.25)
     ap.add_argument("--shelves", type=int, default=5, help="How many shelf bands to split vertically")
     args = ap.parse_args()
 
-    os.makedirs(args.outdir, exist_ok=True)
-    crops_dir = os.path.join(args.outdir, "crops")
-    os.makedirs(crops_dir, exist_ok=True)
+    if not args.image and args.video is None:
+        ap.error("either --image or --video required")
 
-    img = cv2.imread(args.image)
-    if img is None:
-        raise FileNotFoundError(args.image)
-    H,W = img.shape[:2]
+    os.makedirs(args.outdir, exist_ok=True)
 
     model, mode = load_detector()
     rdr = ocr_reader()
 
-    results = model.predict(source=args.image, imgsz=args.imgsz, conf=args.conf, verbose=False)
+    if args.image:
+        crops_dir = os.path.join(args.outdir, "crops")
+        os.makedirs(crops_dir, exist_ok=True)
 
-    annotated = img.copy()
-    rows = []
+        img = cv2.imread(args.image)
+        if img is None:
+            raise FileNotFoundError(args.image)
+        H,W = img.shape[:2]
 
-    for r in results:
-        if r.boxes is None:
-            continue
-        for i, b in enumerate(r.boxes):
-            cls_id = int(b.cls[0])
-            conf = float(b.conf[0])
-            x1,y1,x2,y2 = map(int, b.xyxy[0].tolist())
-            label = r.names.get(cls_id, f"class_{cls_id}")
+        results = model.predict(source=args.image, imgsz=args.imgsz, conf=args.conf, verbose=False)
 
-            # crop + OCR + keyword classify
-            crop = img[max(0,y1):min(H,y2), max(0,x1):min(W,x2)]
-            crop_id = f"ctr_{len(rows):03d}"
-            crop_path = os.path.join(crops_dir, f"{crop_id}.jpg")
-            cv2.imwrite(crop_path, crop)
+        annotated = img.copy()
+        rows = []
 
-            text = ocr_text(rdr, crop)
-            item, score = best_keyword_match(text, cutoff=78)
+        for r in results:
+            if r.boxes is None:
+                continue
+            for i, b in enumerate(r.boxes):
+                cls_id = int(b.cls[0])
+                conf = float(b.conf[0])
+                x1,y1,x2,y2 = map(int, b.xyxy[0].tolist())
+                label = r.names.get(cls_id, f"class_{cls_id}")
 
-            shelf_id = cluster_shelves(H, y1, y2, bands=args.shelves)
+                # crop + OCR + keyword classify
+                crop = img[max(0,y1):min(H,y2), max(0,x1):min(W,x2)]
+                crop_id = f"ctr_{len(rows):03d}"
+                crop_path = os.path.join(crops_dir, f"{crop_id}.jpg")
+                cv2.imwrite(crop_path, crop)
 
-            # Draw
-            disp = item if item else label
-            c = color(len(rows))
-            cv2.rectangle(annotated, (x1,y1), (x2,y2), c, 2)
-            tag = f"{disp} {conf:.2f} | S{shelf_id}"
-            cv2.rectangle(annotated, (x1, max(0,y1-22)), (x1+8*len(tag), y1), c, -1)
-            cv2.putText(annotated, tag, (x1+3, y1-5), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (20,20,20), 1, cv2.LINE_AA)
+                text = ocr_text(rdr, crop)
+                item, score = best_keyword_match(text, cutoff=78)
 
-            rows.append({
-                "container_id": crop_id,
-                "detector_mode": mode,
-                "det_label": label,
-                "confidence": round(conf,3),
-                "shelf_id": shelf_id,
-                "xmin": x1, "ymin": y1, "xmax": x2, "ymax": y2,
-                "ocr_text": text,
-                "item_type": item,
-                "item_conf": score,
-                "crop_path": crop_path
-            })
+                shelf_id = cluster_shelves(H, y1, y2, bands=args.shelves)
 
-    # Save outputs
-    ann_path = os.path.join(args.outdir, "annotated.jpg")
-    csv_path = os.path.join(args.outdir, "items.csv")
-    cv2.imwrite(ann_path, annotated)
-    pd.DataFrame(rows).to_csv(csv_path, index=False)
+                # Draw
+                disp = item if item else label
+                c = color(len(rows))
+                cv2.rectangle(annotated, (x1,y1), (x2,y2), c, 2)
+                tag = f"{disp} {conf:.2f} | S{shelf_id}"
+                cv2.rectangle(annotated, (x1, max(0,y1-22)), (x1+8*len(tag), y1), c, -1)
+                cv2.putText(annotated, tag, (x1+3, y1-5), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (20,20,20), 1, cv2.LINE_AA)
 
-    # Quick summary (counts by item_type)
-    if rows:
-        df = pd.DataFrame(rows)
-        summary = (df.assign(item_type=df["item_type"].fillna("unknown"))
-                     .groupby(["shelf_id","item_type"]).size()
-                     .reset_index(name="count")
-                     .sort_values(["shelf_id","count"], ascending=[True, False]))
-        summary.to_csv(os.path.join(args.outdir, "summary_by_shelf.csv"), index=False)
+                rows.append({
+                    "container_id": crop_id,
+                    "detector_mode": mode,
+                    "det_label": label,
+                    "confidence": round(conf,3),
+                    "shelf_id": shelf_id,
+                    "xmin": x1, "ymin": y1, "xmax": x2, "ymax": y2,
+                    "ocr_text": text,
+                    "item_type": item,
+                    "item_conf": score,
+                    "crop_path": crop_path
+                })
 
-    print(f"[✓] saved: {ann_path}")
-    print(f"[✓] saved: {csv_path}")
-    if rows:
-        print(f"[i] also wrote summary_by_shelf.csv and {len(rows)} crops")
+        # Save outputs
+        ann_path = os.path.join(args.outdir, "annotated.jpg")
+        csv_path = os.path.join(args.outdir, "items.csv")
+        cv2.imwrite(ann_path, annotated)
+        pd.DataFrame(rows).to_csv(csv_path, index=False)
+
+        # Quick summary (counts by item_type)
+        if rows:
+            df = pd.DataFrame(rows)
+            summary = (df.assign(item_type=df["item_type"].fillna("unknown"))
+                         .groupby(["shelf_id","item_type"]).size()
+                         .reset_index(name="count")
+                         .sort_values(["shelf_id","count"], ascending=[True, False]))
+            summary.to_csv(os.path.join(args.outdir, "summary_by_shelf.csv"), index=False)
+
+        print(f"[✓] saved: {ann_path}")
+        print(f"[✓] saved: {csv_path}")
+        if rows:
+            print(f"[i] also wrote summary_by_shelf.csv and {len(rows)} crops")
+    else:  # video mode
+        src = int(args.video) if args.video.isdigit() else args.video
+        cap = cv2.VideoCapture(src)
+        if not cap.isOpened():
+            raise FileNotFoundError(f"Could not open video source: {args.video}")
+        summary = {}
+        while True:
+            ret, frame = cap.read()
+            if not ret:
+                break
+            H, W = frame.shape[:2]
+            annotated = frame.copy()
+            for r in model.predict(frame, imgsz=args.imgsz, conf=args.conf, verbose=False, stream=True):
+                if r.boxes is None:
+                    continue
+                for i, b in enumerate(r.boxes):
+                    cls_id = int(b.cls[0])
+                    conf = float(b.conf[0])
+                    x1,y1,x2,y2 = map(int, b.xyxy[0].tolist())
+                    label = r.names.get(cls_id, f"class_{cls_id}")
+                    crop = frame[max(0,y1):min(H,y2), max(0,x1):min(W,x2)]
+                    text = ocr_text(rdr, crop)
+                    item, score = best_keyword_match(text, cutoff=78)
+                    shelf_id = cluster_shelves(H, y1, y2, bands=args.shelves)
+                    disp = item if item else label
+                    c = color(i)
+                    cv2.rectangle(annotated, (x1,y1), (x2,y2), c, 2)
+                    tag = f"{disp} {conf:.2f} | S{shelf_id}"
+                    cv2.rectangle(annotated, (x1, max(0,y1-22)), (x1+8*len(tag), y1), c, -1)
+                    cv2.putText(annotated, tag, (x1+3, y1-5), cv2.FONT_HERSHEY_SIMPLEX,0.5,(20,20,20),1,cv2.LINE_AA)
+                    summary[disp] = summary.get(disp,0) + 1
+            cv2.imshow("pantry", annotated)
+            if cv2.waitKey(1) & 0xFF == ord('q'):
+                break
+        cap.release()
+        cv2.destroyAllWindows()
+        if summary:
+            print("[summary] detections:")
+            for k,v in summary.items():
+                print(f"  {k}: {v}")
 
 if __name__ == "__main__":
     main()
